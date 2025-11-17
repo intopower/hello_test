@@ -18,13 +18,29 @@ from app.workflows.pipeline import PipelineOrchestrator
 router = APIRouter(prefix="/api")
 task_service = get_task_service()
 storage_service = FileStorageService(settings.media_root, settings.media_url_prefix)
+transcription_service = TranscriptionService(
+    api_key=settings.openai_api_key,
+    model=settings.openai_transcription_model,
+    default_language=settings.default_language,
+)
+script_service = ScriptGenerationService(
+    api_key=settings.openai_api_key,
+    model=settings.openai_script_model,
+    temperature=settings.openai_script_temperature,
+)
+tts_service = TTSService(
+    storage_service,
+    api_key=settings.openai_api_key,
+    model=settings.openai_tts_model,
+)
+video_editor = VideoEditingService(storage_service)
 orchestrator = PipelineOrchestrator(
     task_service,
     storage_service,
-    TranscriptionService(),
-    ScriptGenerationService(),
-    VideoEditingService(storage_service),
-    TTSService(storage_service),
+    transcription_service,
+    script_service,
+    video_editor,
+    tts_service,
 )
 
 
@@ -52,13 +68,13 @@ async def get_task(task_id: str):
     task = task_service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    return VideoTaskDetail(**task.model_dump(), progress=_status_to_progress(task.status))
+    return VideoTaskDetail(**_public_task(task), progress=_status_to_progress(task.status))
 
 
 @router.get("/tasks", response_model=list[VideoTaskDetail])
 async def list_tasks():
     return [
-        VideoTaskDetail(**task.model_dump(), progress=_status_to_progress(task.status))
+        VideoTaskDetail(**_public_task(task), progress=_status_to_progress(task.status))
         for task in task_service.list_tasks()
     ]
 
@@ -75,3 +91,7 @@ def _status_to_progress(status: TaskStatus) -> float:
     }
     key = status.value if isinstance(status, TaskStatus) else str(status)
     return mapping.get(key, 0.0)
+
+
+def _public_task(task):
+    return task.model_dump(exclude={"source_asset": {"local_path"}, "output_asset": {"local_path"}})

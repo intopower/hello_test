@@ -26,7 +26,7 @@ class VideoAsset(BaseModel):
     url: str
     duration: float | None = None
     resolution: str | None = None
-    local_path: str | None = Field(default=None, exclude=True)
+    local_path: str | None = Field(default=None, repr=False)
 
 
 class TimelineEvent(BaseModel):

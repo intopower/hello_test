@@ -43,6 +43,7 @@ class PipelineOrchestrator:
                 self._transcription.transcribe,
                 self._get_source_path(task_id, task.source_asset),
                 hints=[task.options.description or ""],
+                language=task.options.language,
             )
             current_time = self._append_timeline(timeline, "剧情解析", current_time, 12, "analysis")
 
@@ -51,6 +52,7 @@ class PipelineOrchestrator:
                 self._script_service.generate,
                 transcript.segments,
                 target_duration=task.options.target_duration,
+                language=task.options.language,
             )
             self._task_service.update_task(
                 task_id,
