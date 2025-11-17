@@ -22,6 +22,20 @@ export interface VideoAsset {
   resolution?: string | null
 }
 
+export interface TimelineEvent {
+  label: string
+  start: number
+  end: number
+  category: string
+}
+
+export interface NarrationAsset {
+  url: string
+  locale: string
+  voice_profile: string
+  duration: number
+}
+
 export interface VideoTask {
   id: string
   status: TaskStatus
@@ -32,6 +46,10 @@ export interface VideoTask {
   output_asset?: VideoAsset | null
   progress: number
   failure_reason?: string | null
+  options: CreateTaskMetadata
+  timeline: TimelineEvent[]
+  narration_assets: NarrationAsset[]
+  bgm_theme?: string | null
 }
 
 export interface CreateTaskMetadata {

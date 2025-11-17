@@ -1,6 +1,14 @@
 import type { CreateTaskMetadata, VideoTask } from './types'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
+export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
+export const API_ORIGIN = (() => {
+  try {
+    const url = new URL(API_BASE)
+    return `${url.protocol}//${url.host}`
+  } catch {
+    return API_BASE.replace(/\/api\/?$/, '')
+  }
+})()
 
 export async function fetchTasks(): Promise<VideoTask[]> {
   const res = await fetch(`${API_BASE}/tasks`)

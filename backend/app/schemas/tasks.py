@@ -1,7 +1,5 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -28,6 +26,21 @@ class VideoAsset(BaseModel):
     url: str
     duration: float | None = None
     resolution: str | None = None
+    local_path: str | None = Field(default=None, exclude=True)
+
+
+class TimelineEvent(BaseModel):
+    label: str
+    start: float
+    end: float
+    category: str
+
+
+class NarrationAsset(BaseModel):
+    url: str
+    locale: str
+    voice_profile: str
+    duration: float
 
 
 class VideoTaskCreate(BaseModel):
@@ -47,6 +60,10 @@ class VideoTask(BaseModel):
     source_asset: VideoAsset | None = None
     output_asset: VideoAsset | None = None
     failure_reason: str | None = None
+    options: VideoTaskCreate
+    timeline: list[TimelineEvent] = Field(default_factory=list)
+    narration_assets: list[NarrationAsset] = Field(default_factory=list)
+    bgm_theme: str | None = None
 
 
 class VideoTaskResponse(BaseModel):

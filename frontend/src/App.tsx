@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
-import { createTask, fetchTasks } from './api'
+import { API_ORIGIN, createTask, fetchTasks } from './api'
 import type { CreateTaskMetadata, VideoTask } from './types'
 
 const defaultMetadata: CreateTaskMetadata = {
@@ -10,6 +10,31 @@ const defaultMetadata: CreateTaskMetadata = {
   language: 'zh',
   voice_profile: 'narrator_female',
   target_duration: 90,
+}
+
+const statusLabel: Record<string, string> = {
+  pending: '排队中',
+  analyzing: '内容解析',
+  scripting: '脚本生成',
+  editing: '智能剪辑',
+  rendering: '渲染配音',
+  completed: '已完成',
+  failed: '失败',
+}
+
+const categoryPalette: Record<string, string> = {
+  analysis: 'timeline-analysis',
+  script: 'timeline-script',
+  editing: 'timeline-editing',
+  audio: 'timeline-audio',
+}
+
+const formatStatus = (status: string) => statusLabel[status] ?? status
+
+const resolveAssetUrl = (url?: string | null) => {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  return `${API_ORIGIN}${url}`
 }
 
 function App() {
@@ -25,6 +50,11 @@ function App() {
     if (!tasks.length) return null
     return tasks.find((task) => task.id === selectedTaskId) ?? tasks[0]
   }, [tasks, selectedTaskId])
+
+  const timelineTotal = useMemo(() => {
+    if (!selectedTask || selectedTask.timeline.length === 0) return 0
+    return selectedTask.timeline[selectedTask.timeline.length - 1].end
+  }, [selectedTask])
 
   const loadTasks = useCallback(async () => {
     try {
@@ -161,7 +191,7 @@ function App() {
           <div className="panel-header">
             <div>
               <h2>2. 任务进度面板</h2>
-              <p className="subtitle">实时查看解析进度与自动生成的脚本片段</p>
+              <p className="subtitle">实时查看解析进度、时间线与自动生成的脚本片段</p>
             </div>
             <button className="ghost" onClick={loadTasks}>
               刷新
@@ -179,10 +209,11 @@ function App() {
                 >
                   <div className="task-status-line">
                     <span className={`status-dot status-${task.status}`} />
-                    <span>{task.status}</span>
+                    <span>{formatStatus(task.status)}</span>
                     <span className="time">{new Date(task.created_at).toLocaleString()}</span>
                   </div>
-                  <p className="task-title">{task.source_asset?.url ?? '未命名任务'}</p>
+                  <p className="task-title">{task.options.title || '未命名任务'}</p>
+                  <p className="task-meta">{task.options.language.toUpperCase()} · {task.options.voice_profile}</p>
                   <div className="progress">
                     <div style={{ width: `${Math.round(task.progress * 100)}%` }} />
                   </div>
@@ -197,7 +228,7 @@ function App() {
                   <div className="detail-row">
                     <h3>当前状态</h3>
                     <span className={`status-chip status-${selectedTask.status}`}>
-                      {selectedTask.status}
+                      {formatStatus(selectedTask.status)}
                     </span>
                   </div>
                   <p>
@@ -205,20 +236,75 @@ function App() {
                     {Math.round(selectedTask.progress * 100)}%
                   </p>
 
-                  {selectedTask.output_asset && (
-                    <a className="primary-link" href={selectedTask.output_asset.url}>
-                      查看生成视频
-                    </a>
+                  {selectedTask.failure_reason && (
+                    <p className="message error inline">错误：{selectedTask.failure_reason}</p>
                   )}
 
-                  <h4>自动生成的解说脚本</h4>
-                  {selectedTask.script.length === 0 && (
-                    <p className="placeholder">脚本生成中...</p>
+                  <div className="detail-grid">
+                    <div>
+                      <h4>任务配置</h4>
+                      <ul className="pill-list">
+                        <li>语言：{selectedTask.options.language.toUpperCase()}</li>
+                        <li>语音：{selectedTask.options.voice_profile}</li>
+                        <li>目标时长：{selectedTask.options.target_duration}s</li>
+                        {selectedTask.bgm_theme && <li>BGM：{selectedTask.bgm_theme}</li>}
+                      </ul>
+                      {selectedTask.options.description && <p>{selectedTask.options.description}</p>}
+                    </div>
+                    <div>
+                      <h4>素材</h4>
+                      <ul className="pill-list">
+                        {selectedTask.source_asset?.url && (
+                          <li>
+                            <a className="primary-link" href={resolveAssetUrl(selectedTask.source_asset.url)}>
+                              源素材
+                            </a>
+                          </li>
+                        )}
+                        {selectedTask.output_asset?.url && (
+                          <li>
+                            <a className="primary-link" href={resolveAssetUrl(selectedTask.output_asset.url)}>
+                              成片下载
+                            </a>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {selectedTask.output_asset && (
+                    <div className="video-preview">
+                      <video controls src={resolveAssetUrl(selectedTask.output_asset.url)} />
+                    </div>
                   )}
+
+                  <div className="timeline-section">
+                    <h4>制作时间线</h4>
+                    {selectedTask.timeline.length === 0 && <p className="placeholder">尚未生成时间线</p>}
+                    {selectedTask.timeline.length > 0 && (
+                      <div className="timeline-bar">
+                        {selectedTask.timeline.map((event) => {
+                          const width = timelineTotal ? ((event.end - event.start) / timelineTotal) * 100 : 0
+                          return (
+                            <div
+                              key={`${event.label}-${event.start}`}
+                              className={`timeline-block ${categoryPalette[event.category] ?? ''}`}
+                              style={{ width: `${width}%` }}
+                            >
+                              <span>{event.label}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <h4>自动生成的解说脚本</h4>
+                  {selectedTask.script.length === 0 && <p className="placeholder">脚本生成中...</p>}
                   <ul className="script-list">
                     {selectedTask.script.map((segment) => (
                       <li key={segment.order}>
-                        <div>
+                        <div className="script-header">
                           <strong>
                             第 {segment.order} 段 · {segment.start.toFixed(0)}s - {segment.end.toFixed(0)}s
                           </strong>
@@ -229,6 +315,23 @@ function App() {
                       </li>
                     ))}
                   </ul>
+
+                  <div className="audio-section">
+                    <h4>AI 配音轨</h4>
+                    {selectedTask.narration_assets.length === 0 && <p className="placeholder">配音生成中...</p>}
+                    <ul className="audio-list">
+                      {selectedTask.narration_assets.map((asset, idx) => (
+                        <li key={`${asset.url}-${idx}`}>
+                          <div>
+                            <strong>{asset.voice_profile}</strong>
+                            <span>{asset.locale.toUpperCase()}</span>
+                            <span>{asset.duration.toFixed(0)}s</span>
+                          </div>
+                          <audio controls src={resolveAssetUrl(asset.url)} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
             </article>
