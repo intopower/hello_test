@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Protocol, Sequence
 
 from openai import OpenAI
 
@@ -13,19 +13,29 @@ class TranscriptionResult:
     segments: list[str]
 
 
-class TranscriptionService:
-    """Whisper/OpenAI 转写，若缺少 API Key 则回退到占位内容."""
+class TranscriptionProvider(Protocol):
+    def transcribe(
+        self,
+        media_path: Path,
+        *,
+        hints: Sequence[str] | None = None,
+        language: str | None = None,
+    ) -> TranscriptionResult: ...
+
+
+class OpenAITranscriptionService:
+    """调用 OpenAI Whisper API."""
 
     def __init__(
         self,
         *,
-        api_key: str | None,
+        api_key: str,
         model: str,
         default_language: str = "zh",
     ) -> None:
         self._default_language = default_language
         self._model = model
-        self._client: OpenAI | None = OpenAI(api_key=api_key) if api_key else None
+        self._client = OpenAI(api_key=api_key)
 
     def transcribe(
         self,
@@ -35,20 +45,17 @@ class TranscriptionService:
         language: str | None = None,
     ) -> TranscriptionResult:
         lang = language or self._default_language
-        if self._client and media_path.exists():
-            with media_path.open("rb") as audio_file:
-                response = self._client.audio.transcriptions.create(
-                    model=self._model,
-                    file=audio_file,
-                    language=lang,
-                    prompt=" ".join(hints or ""),
-                )
-            text = getattr(response, "text", "") or ""
-            segments = self._split_segments(text)
-            detected = getattr(response, "language", None) or lang
-            return TranscriptionResult(language=detected, segments=segments)
-
-        return TranscriptionResult(language=lang, segments=self._fallback_segments(media_path, hints))
+        with media_path.open("rb") as audio_file:
+            response = self._client.audio.transcriptions.create(
+                model=self._model,
+                file=audio_file,
+                language=lang,
+                prompt=" ".join(hints or []),
+            )
+        text = getattr(response, "text", "") or ""
+        segments = self._split_segments(text)
+        detected = getattr(response, "language", None) or lang
+        return TranscriptionResult(language=detected, segments=segments)
 
     def _split_segments(self, text: str) -> list[str]:
         if not text.strip():
@@ -65,11 +72,27 @@ class TranscriptionService:
             segments.append(current.strip())
         return segments
 
-    def _fallback_segments(self, media_path: Path, hints: Sequence[str] | None) -> list[str]:
-        summary = "".join(hints or [])
-        filename = media_path.name
-        return [
-            f"【占位】素材 {filename}，请在配置 OPENAI_API_KEY 后获取真实转写。",
-            f"参考线索：{summary or '暂无'}",
-            "可继续执行脚本生成，以便验证后续链路。",
+
+class LocalTranscriptionService:
+    """基于硬件信息的占位实现，可扩展为本地 Whisper/MPS/CPU 推理."""
+
+    def __init__(self, device_hint: str, default_language: str = "zh") -> None:
+        self._default_language = default_language
+        self._device_hint = device_hint
+
+    def transcribe(
+        self,
+        media_path: Path,
+        *,
+        hints: Sequence[str] | None = None,
+        language: str | None = None,
+    ) -> TranscriptionResult:
+        lang = language or self._default_language
+        summary = "、".join(hints or []) or "该剧集"
+        segments = [
+            f"[{self._device_hint}] 对 {media_path.name} 的本地解析：{summary}",
+            "开场：镜头节奏紧张，适合加快口播",
+            "中段：冲突与反转并存，建议使用情绪起伏的配音",
+            "收尾：留下悬念，引导用户观看正片",
         ]
+        return TranscriptionResult(language=lang, segments=segments)

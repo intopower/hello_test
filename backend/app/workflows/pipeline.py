@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from app.schemas.tasks import TaskStatus, TimelineEvent, VideoAsset
-from app.services.script_generator import ScriptGenerationService
+from app.services.script_generator import ScriptGenerationProvider
 from app.services.storage import FileStorageService
 from app.services.task_service import TaskService
-from app.services.transcription import TranscriptionService
-from app.services.tts_service import TTSService
+from app.services.transcription import TranscriptionProvider
+from app.services.tts_service import TTSProvider
 from app.services.video_editor import VideoEditingService
 
 
@@ -18,10 +18,10 @@ class PipelineOrchestrator:
         self,
         task_service: TaskService,
         storage: FileStorageService,
-        transcription: TranscriptionService,
-        script_service: ScriptGenerationService,
+        transcription: TranscriptionProvider,
+        script_service: ScriptGenerationProvider,
         video_editor: VideoEditingService,
-        tts_service: TTSService,
+        tts_service: TTSProvider,
     ) -> None:
         self._task_service = task_service
         self._storage = storage
