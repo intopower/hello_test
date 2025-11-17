@@ -79,6 +79,14 @@ docker compose up
 
 - 后端：`http://localhost:8000`，会读取根目录 `.env`，并把媒体/数据保存在宿主的 `storage/` 目录。
 - 前端：`http://localhost:4173`，默认通过 `http://backend:8000/api` 访问后端。
+- Worker：自动运行 `celery worker`，从 Redis 消费任务并执行完整管线。
+- Redis：作为 Celery broker/result backend，可根据需要替换为 RabbitMQ 等。
+
+## 任务队列与并发
+
+- 所有视频处理任务都会通过 FastAPI → Celery → Redis 的路径排队，后端不再依赖 `BackgroundTasks`。
+- Worker 与 API 共用 `PipelineOrchestrator`，支持水平扩展多个 worker 实例，根据硬件自动选择模型实现与 FFmpeg 编码器。
+- 可在 `.env` 中配置 `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` 指向外部 Redis 或云消息队列；需要更多吞吐量时，直接扩容 `worker` 服务即可。
 
 ## 自适应硬件策略
 

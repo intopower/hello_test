@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     task_expiration_minutes: int = 60 * 24
     media_url_prefix: str = "/media"
     default_language: str = "zh"
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/1"
 
     base_dir: Path = Path(__file__).resolve().parents[2]
     media_root: Path = base_dir / "storage" / "media"

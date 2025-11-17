@@ -11,6 +11,8 @@ services:
       - ./storage:/app/storage
     ports:
       - "8000:8000"
+    depends_on:
+      - redis
 
   frontend:
     build:
@@ -18,7 +20,24 @@ services:
       dockerfile: Dockerfile.frontend
     environment:
       - VITE_API_BASE=http://backend:8000/api
-    depends_on:
-      - backend
     ports:
       - "4173:4173"
+    depends_on:
+      - backend
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
