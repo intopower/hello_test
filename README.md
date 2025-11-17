@@ -14,7 +14,7 @@
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 OPENAI_API_KEY 等信息
+# 编辑 .env，填入 OPENAI_API_KEY 等信息，并可选配置 ACCELERATOR_OVERRIDE
 ```
 
 ### 1. 后端
@@ -47,6 +47,7 @@ Vite 默认在 `http://localhost:5173`，并通过 `VITE_API_BASE` 环境变量�
 - 所有任务、脚本、媒体文件持久化存储，可刷新后继续查看与下载。
 - 前端面板提供进度条、彩色时间线、视频预览、脚本列表以及配音音频播放器。
 - 结构化代码，便于后续对接真实模型与任务队列（Celery/Kafka 等）。
+- 自动检测运行硬件（NVIDIA CUDA、ROCm、Apple Silicon/Metal、CPU），并为 FFmpeg 选择最合适的编码器（`h264_nvenc`/`h264_videotoolbox`/`libx264`），必要时可通过 `ACCELERATOR_OVERRIDE` 强制。
 
 ## 项目结构
 
@@ -77,6 +78,12 @@ docker compose up
 
 - 后端：`http://localhost:8000`，会读取根目录 `.env`，并把媒体/数据保存在宿主的 `storage/` 目录。
 - 前端：`http://localhost:4173`，默认通过 `http://backend:8000/api` 访问后端。
+
+## 自适应硬件策略
+
+- 启动时会自动探测主机硬件：优先识别 `nvidia-smi`（CUDA）、`rocm-smi`（ROCm）以及 Apple Silicon (`arm64 + Darwin`)。
+- 根据结果选择 `FFmpeg` 编码器：`h264_nvenc`（NVIDIA）、`h264_vaapi`（ROCm/VA-API）、`h264_videotoolbox`（Apple 芯片）、默认 `libx264`。
+- 通过 `.env` 中的 `ACCELERATOR_OVERRIDE` 可手动指定 `cpu`/`cuda`/`rocm`/`metal`，便于容器或 CI 环境调试。
 
 ## 下一步规划
 

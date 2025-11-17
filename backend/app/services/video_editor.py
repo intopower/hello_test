@@ -10,10 +10,16 @@ from app.services.storage import FileStorageService
 
 
 class VideoEditingService:
-    def __init__(self, storage: FileStorageService) -> None:
+    def __init__(self, storage: FileStorageService, *, preferred_encoder: str = "libx264") -> None:
         self._storage = storage
+        self._preferred_encoder = preferred_encoder
 
-    def build_highlight(self, task_id: str, source_asset: VideoAsset | None, segments: Iterable[ScriptSegment]) -> VideoAsset:
+    def build_highlight(
+        self,
+        task_id: str,
+        source_asset: VideoAsset | None,
+        segments: Iterable[ScriptSegment],
+    ) -> VideoAsset:
         output_filename = "highlight.mp4"
         output_path = self._storage.allocate_file(task_id, output_filename)
         clip = None
@@ -34,7 +40,7 @@ class VideoEditingService:
             if clip is None:
                 duration = max((seg.end - seg.start) for seg in segments) if segments else 30
                 clip = ColorClip(size=(1280, 720), color=(20, 23, 35), duration=duration)
-            clip.write_videofile(str(output_path), codec="libx264", audio=False, fps=24)
+            clip.write_videofile(str(output_path), codec=self._preferred_encoder, audio=False, fps=24)
         except Exception:
             output_path.write_bytes(b"placeholder video")
         finally:

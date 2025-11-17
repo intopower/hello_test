@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app.core.config import settings
+from app.core.hardware import Accelerator, detect_hardware
 from app.schemas.tasks import TaskStatus, VideoTaskCreate, VideoTaskDetail, VideoTaskResponse
 from app.services.script_generator import ScriptGenerationService
 from app.services.storage import FileStorageService
@@ -18,6 +19,7 @@ from app.workflows.pipeline import PipelineOrchestrator
 router = APIRouter(prefix="/api")
 task_service = get_task_service()
 storage_service = FileStorageService(settings.media_root, settings.media_url_prefix)
+hardware_profile = detect_hardware()
 transcription_service = TranscriptionService(
     api_key=settings.openai_api_key,
     model=settings.openai_transcription_model,
@@ -33,7 +35,10 @@ tts_service = TTSService(
     api_key=settings.openai_api_key,
     model=settings.openai_tts_model,
 )
-video_editor = VideoEditingService(storage_service)
+video_editor = VideoEditingService(
+    storage_service,
+    preferred_encoder=_encoder_for_accelerator(hardware_profile.accelerator),
+)
 orchestrator = PipelineOrchestrator(
     task_service,
     storage_service,
@@ -95,3 +100,12 @@ def _status_to_progress(status: TaskStatus) -> float:
 
 def _public_task(task):
     return task.model_dump(exclude={"source_asset": {"local_path"}, "output_asset": {"local_path"}})
+
+
+def _encoder_for_accelerator(accelerator: Accelerator) -> str:
+    mapping = {
+        Accelerator.CUDA: "h264_nvenc",
+        Accelerator.ROCM: "h264_vaapi",
+        Accelerator.METAL: "h264_videotoolbox",
+    }
+    return mapping.get(accelerator, "libx264")
